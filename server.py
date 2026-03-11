@@ -1,9 +1,37 @@
 from fastapi import FastAPI
-
+import csv
 app = FastAPI()
 
-users = {"79af0c177db2ee64b7301af6e1d53634": {"password":"70375478134bc7187a0d5a0ffd59c283","admin?":False},"9c5ddd54107734f7d18335a5245c286b":{"password":"0f35b3151769db9b184ade7ee5eed39c","admin?":True}}
 user = ""
+
+def getdict():
+    u = {}
+    with open('pwd.csv', 'r') as file:
+        reader = csv.reader(file)
+        for row in reader:
+            u[row[0]]={"password":row[1],"admin?":row[2]}
+        return u
+
+users = getdict()
+
+def setUsers(users):
+    with open('pwd.csv', 'w') as file:
+        for key, inner_dict in users.items():
+            line = f"{key},{inner_dict['password']},{inner_dict['admin?']}\n"
+            file.write(line)
+
+@app.post('/addUser')
+def addUser(a:dict):
+    global user, users
+    if a["setUser"]:
+        users[a["user"]]={"password":a["password"],"admin?":False}
+        user = a["user"]
+        setUsers(users)
+    else:
+        if users.__contains__(a["user"]):
+            return {"status": "exists"}
+        return {"status": ""}
+
 
 @app.post('/users')
 def getuser(u:dict):
