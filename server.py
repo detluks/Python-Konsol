@@ -24,7 +24,10 @@ def setUsers(users):
 def addUser(a:dict):
     global user, users
     if a["setUser"]:
-        users[a["user"]]={"password":a["password"],"admin?":False}
+        if users.__contains__(a["user"]):
+            users[a["user"]]={"password":a["password"],"admin?": users[a["user"]]["admin?"]}
+        else:
+            users[a["user"]]={"password":a["password"],"admin?":False}
         user = a["user"]
         setUsers(users)
     else:
@@ -32,6 +35,11 @@ def addUser(a:dict):
             return {"status": "exists"}
         return {"status": ""}
 
+@app.post('/rmUser')
+def rmUser(a:dict):
+    global users
+    del users[a["username"]]
+    setUsers(users)
 
 @app.post('/users')
 def getuser(u:dict):
@@ -43,7 +51,7 @@ def getuser(u:dict):
 
 @app.post('/passwords')
 def getuser(Pass:dict):
-    if Pass["password"] == users[user]["password"]:
+    if Pass["password"] == users[Pass["username"]]["password"]:
         return {"status": "loggedIn"}
     return {"status": ""}
 
