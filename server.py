@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 import csv
+from pathlib import Path
 app = FastAPI()
-
 user = ""
 
 def getdict():
@@ -9,16 +9,19 @@ def getdict():
     with open('pwd.csv', 'r') as file:
         reader = csv.reader(file)
         for row in reader:
-            u[row[0]]={"password":row[1],"admin?":row[2]}
-        return u
+            u[row[0]] = {
+                "password": row[1],
+                "admin?": row[2] == "True"
+            }
+    return u
 
-users = getdict()
 
 def setUsers(users):
     with open('pwd.csv', 'w') as file:
         for key, inner_dict in users.items():
             line = f"{key},{inner_dict['password']},{inner_dict['admin?']}\n"
             file.write(line)
+users = getdict()
 
 @app.post('/addUser')
 def addUser(a:dict):
@@ -55,6 +58,34 @@ def getuser(Pass:dict):
         return {"status": "loggedIn"}
     return {"status": ""}
 
+@app.post('/changeadmin')
+def pullInfo(a:dict):
+    if a["request"]:
+        return {"isadmin": users[a["ID"]]["admin?"]}
+    else: 
+        if users.__contains__(a["ID"]):
+            users[a["ID"]] = {"password": users[a["ID"]]["password"], "admin?": not users[a["ID"]]["admin?"]}
+            setUsers(users)
+            return{"succes?": True}
+        else:
+            return {"succes?": False}
+
+@app.post('/download')
+def download(a:dict):
+    folder = Path("users")
+    files = [f.stem for f in folder.glob("*.txt")]
+    if files.__contains__(a["ID"]):
+        with open(f"users/{a["ID"]}.txt", "r") as f:
+            lines = [line.strip() for line in f]
+        return lines
+    else:
+        return False
+
+@app.post('/upload')
+def upload(a:dict):
+    with open(f"users/{a["ID"]}.txt", "w") as f:
+        for item in a["file"]:
+            f.write(item + "\n")
 
 if __name__ == "__main__":
     import uvicorn; from pathlib import Path
