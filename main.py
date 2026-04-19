@@ -124,6 +124,7 @@ class User:
             with open(f"{self.name}.txt", "r") as f:
                 lines = [line.strip() for line in f]
             requests.post(url, json={"ID": self.id,"file": lines})
+            Path(f"{self.name}.txt").unlink(missing_ok=True)
             print("Upload complete!\n")
         else:
             print(f"Error file not found \nto upload a file first create a file with the name: '{self.name}.txt'")
@@ -150,12 +151,14 @@ class User:
 def main():
     user = User(login())
     print(f"you where logged in as: {user.name}")
+    user.download()
     while True:
         command = input(f"{user.name}> ")
         if command == "remove user":
             if user.rmUser():
                 break
         elif command == "logout":
+            user.upload()
             break  
         elif command == "getID":
             print(user.id)

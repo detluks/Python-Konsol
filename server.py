@@ -1,18 +1,67 @@
 from fastapi import FastAPI
 import csv
 from pathlib import Path
+from cryptography.fernet import Fernet
+
 app = FastAPI()
 user = ""
 
+
+key_path = Path("key.key")
+
+if key_path.exists():
+    key = key_path.read_bytes()
+else:
+    key = Fernet.generate_key()
+    key_path.write_bytes(key)
+
+cipher = Fernet(key)
+
+
+def encrypt(ID: str):
+    path = Path(f"users/{ID}.txt")
+    if not path.exists():
+        return False
+
+    with open(path, "rb") as f:
+        data = f.read()
+
+    encrypted = cipher.encrypt(data)
+
+    with open(path, "wb") as f:
+        f.write(encrypted)
+
+    return True
+
+
+def decrypt(ID: str):
+    path = Path(f"users/{ID}.txt")
+    if not path.exists():
+        return False
+
+    with open(path, "rb") as f:
+        data = f.read()
+
+    try:
+        decrypted = cipher.decrypt(data)
+    except:
+        return False
+
+    with open(path, "wb") as f:
+        f.write(decrypted)
+
+    return True
+
 def getdict():
     u = {}
-    with open('pwd.csv', 'r') as file:
-        reader = csv.reader(file)
-        for row in reader:
-            u[row[0]] = {
-                "password": row[1],
-                "admin?": row[2] == "True"
-            }
+    if Path("pwd.csv").exists():
+        with open('pwd.csv', 'r') as file:
+            reader = csv.reader(file)
+            for row in reader:
+                u[row[0]] = {
+                    "password": row[1],
+                    "admin?": row[2] == "True"
+                }
     return u
 
 
@@ -21,16 +70,25 @@ def setUsers(users):
         for key, inner_dict in users.items():
             line = f"{key},{inner_dict['password']},{inner_dict['admin?']}\n"
             file.write(line)
+
+
 users = getdict()
+
 
 @app.post('/addUser')
 def addUser(a:dict):
     global user, users
     if a["setUser"]:
         if users.__contains__(a["user"]):
-            users[a["user"]]={"password":a["password"],"admin?": users[a["user"]]["admin?"]}
+            users[a["user"]] = {
+                "password": a["password"],
+                "admin?": users[a["user"]]["admin?"]
+            }
         else:
-            users[a["user"]]={"password":a["password"],"admin?":False}
+            users[a["user"]] = {
+                "password": a["password"],
+                "admin?": False
+            }
         user = a["user"]
         setUsers(users)
     else:
@@ -38,11 +96,13 @@ def addUser(a:dict):
             return {"status": "exists"}
         return {"status": ""}
 
+
 @app.post('/rmUser')
 def rmUser(a:dict):
     global users
     del users[a["username"]]
     setUsers(users)
+
 
 @app.post('/users')
 def getuser(u:dict):
@@ -52,41 +112,62 @@ def getuser(u:dict):
         return {"status": "exists"}
     return {"status": ""}
 
+
 @app.post('/passwords')
-def getuser(Pass:dict):
+def getpassword(Pass:dict):
     if Pass["password"] == users[Pass["username"]]["password"]:
         return {"status": "loggedIn"}
     return {"status": ""}
 
+
 @app.post('/changeadmin')
-def pullInfo(a:dict):
+def changeadmin(a:dict):
     if a["request"]:
         return {"isadmin": users[a["ID"]]["admin?"]}
-    else: 
+    else:
         if users.__contains__(a["ID"]):
-            users[a["ID"]] = {"password": users[a["ID"]]["password"], "admin?": not users[a["ID"]]["admin?"]}
+            users[a["ID"]] = {
+                "password": users[a["ID"]]["password"],
+                "admin?": not users[a["ID"]]["admin?"]
+            }
             setUsers(users)
-            return{"succes?": True}
+            return {"succes?": True}
         else:
             return {"succes?": False}
+
+
 
 @app.post('/download')
 def download(a:dict):
     folder = Path("users")
     files = [f.stem for f in folder.glob("*.txt")]
+
     if files.__contains__(a["ID"]):
-        with open(f"users/{a["ID"]}.txt", "r") as f:
+        decrypt(a["ID"])
+
+        with open(f"users/{a['ID']}.txt", "r") as f:
             lines = [line.strip() for line in f]
+
+        encrypt(a["ID"])
+
         return lines
     else:
         return False
 
+
+
 @app.post('/upload')
 def upload(a:dict):
-    with open(f"users/{a["ID"]}.txt", "w") as f:
+    Path("users").mkdir(exist_ok=True)
+
+    with open(f"users/{a['ID']}.txt", "w") as f:
         for item in a["file"]:
             f.write(item + "\n")
 
+    encrypt(a["ID"])
+
+
 if __name__ == "__main__":
-    import uvicorn; from pathlib import Path
-    uvicorn.run(f'{Path(__file__).resolve().stem}:app', host="0.0.0.0", port=8000, reload=True)
+    import uvicorn
+    uvicorn.run(f'{Path(__file__).resolve().stem}:app',
+                host="0.0.0.0", port=8000, reload=True)
